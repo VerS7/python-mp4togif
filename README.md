@@ -1,2 +1,6 @@
 # MP4toGIF
-University project of mp4 video to gif converter
+University project 
+Mp4 video to gif converter
+Based on python with PyQt5
+cv2-python used for converting
+Threading realised
