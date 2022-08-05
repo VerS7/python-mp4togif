@@ -3,6 +3,8 @@ import glob, cv2, os
 from PIL import Image
 from PyQt5 import QtCore
 from pathlib import Path
+from io import BytesIO
+from tempfile import TemporaryDirectory
 
 
 class Thread(QtCore.QThread):
@@ -10,6 +12,7 @@ class Thread(QtCore.QThread):
     video_path = None
     save_path = None
     images = None
+    rec_indexes = []
     frame_duration = 40
     compression = 0
 
@@ -21,43 +24,53 @@ class Thread(QtCore.QThread):
             video_capture = cv2.VideoCapture(video_path)
             still_reading, image = video_capture.read()
             frame_count = 0
+            frames = {}
             while still_reading:
-                cv2.imwrite(f"output/{frame_count:03d}.jpg", image)
+                is_success, buffer = cv2.imencode(".jpg", image)
+                frames[frame_count] = BytesIO(buffer)
                 still_reading, image = video_capture.read()
                 frame_count += 1
+            self.images = frames
         else:
             pass
 
-    def clear(self):
-        files = glob.glob(f'output/*.jpg')
-        for elem in files:
-            os.remove(elem)
+    def optimize(self, rec_count):
+        self.indexing()
+        self.recursive_enumerate(rec_count)
+        new_images = {}
+        for elem in self.rec_indexes:
+            new_images[elem] = self.images.get(elem)
+        self.images = new_images
 
-    def recursive_optimize(self, rec_count):
+    def recursive_enumerate(self, rec_count):
         if rec_count > 0:
-            self.images.sort()
-            for i in self.images:
-                if self.images.index(i) % 2 == 0:
-                    self.images.remove(i)
+            for i in self.rec_indexes:
+                if self.rec_indexes.index(i) % 2 == 0:
+                    self.rec_indexes.remove(i)
                 else:
                     continue
-            return self.recursive_optimize(rec_count-1)
+            return self.recursive_enumerate(rec_count-1)
+        else:
+            pass
+
+    def indexing(self):
+        for i in self.images:
+            self.rec_indexes.append(i)
 
     def run(self):
-        self.clear()
-        self.make_jpgs_from_mp4(video_path=self.video_path)
-        self.images = glob.glob(f"output/*.jpg")
-        self.recursive_optimize(self.compression)
-        self.images.sort()
-        frames = [Image.open(image) for image in self.images]
-        frame_one = frames[0]
-        frame_one.save(
-            f"{self.save_path}/{Path(self.video_path).stem}.gif",
-            format="GIF",
-            append_images=frames,
-            save_all=True,
-            duration=self.frame_duration,
-            loop=0
-        )
-        self.clear()
-        self.finished.emit()
+        try:
+            self.make_jpgs_from_mp4(self.video_path)
+            self.optimize(self.compression)
+            frames = [Image.open(image) for image in self.images.values()]
+            frame_one = frames[0]
+            frame_one.save(
+                f"{self.save_path}/{Path(self.video_path).stem}.gif",
+                format="GIF",
+                append_images=frames,
+                save_all=True,
+                duration=self.frame_duration,
+                loop=0
+            )
+            self.finished.emit()
+        except Exception as e:
+            print(e)
