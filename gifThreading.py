@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
-import glob, cv2, os
+import cv2
 from PIL import Image
 from PyQt5 import QtCore
 from pathlib import Path
 from io import BytesIO
-from tempfile import TemporaryDirectory
 
 
 class Thread(QtCore.QThread):
